@@ -1,6 +1,6 @@
 {
   "name": "css-calc-polyfill",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "css3 calc polyfill",
   "main": "lib/index.js",
   "scripts": {
