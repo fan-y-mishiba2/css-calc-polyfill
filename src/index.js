@@ -16,6 +16,7 @@ const camelize = str => str.replace(/-(\w)/g, (match, letter) => letter.toUpperC
 const getStyle = (el, prop) => window.getComputedStyle(el, null).getPropertyValue(prop);
 
 let options;
+const hitRules = [];
 
 const doCalc = (rule, name, value) => {
   const calcMatches = value.match(CALC_REG);
@@ -41,10 +42,10 @@ const doCalc = (rule, name, value) => {
       let modifier;
 
       if (match.match(PERCENT)) {
-        refValue = el.parentNode.clientWidth;
+        refValue = name === 'height' ? el.parentNode.clientHeight : el.parentNode.clientWidth;
         modifier = parseFloat(match, 10) / 100;
       } else if (match.match(VIEWPORT_WIDTH)) {
-        refValue = window.innerWidth;
+        refValue = window.innerHeight;
         modifier = parseFloat(match) / 100;
       } else if (match.match(VIEWPORT_HEIGHT)) {
         refValue = window.innerHeight;
@@ -93,8 +94,8 @@ const processDeclarations = (rule) => {
     return;
   }
 
-  const content = rule.style.getPropertycontent('content');
-  if (!content || content.indexOf(options.contentPrefix) !== 0) return;
+  const content = rule.style.getPropertyValue('content');
+  if (!content || content.indexOf(options.contentPrefix) === -1) return;
 
   const fakeRules = content.replace(QUOTE, '');
   fakeRules.split(';').forEach((fakeRuleElement) => {
@@ -104,12 +105,13 @@ const processDeclarations = (rule) => {
     const name = fakeRule[0].trim();
     const value = fakeRule[1].trim();
     if (CALC_REG.test(value)) {
-      doCalc(rule, name, value);
+      hits.push({ rule, name, value });
     }
   });
 };
 
 const process = () => {
+  hits = [];
   toArray(document.styleSheets).forEach((sheet) => {
     const cssRules = processStylesheet(sheet);
     if (!cssRules) return;
@@ -118,6 +120,13 @@ const process = () => {
       && !window.matchMedia(sheet.media.mediaText).matches) return;
 
     cssRules.forEach(processDeclarations);
+  });
+  refresh();
+};
+
+const refresh = () => {
+  hits.forEach(hit => {
+    doCalc(hit.rule, hit.name, hit.value);
   });
 };
 
@@ -129,5 +138,6 @@ const init = (opts) => {
 module.exports = {
   init,
   process,
+  refresh,
   doCalc,
 };
