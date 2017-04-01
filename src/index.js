@@ -1,4 +1,4 @@
-const CALC_REG = /calc\(([\s\S]+)\)/;
+const CALC_REG = /\bcalc\(([\s\S]+)\)/;
 const PERCENT = /[\d.]+%/;
 const VIEWPORT_WIDTH = /[\d.]+vw/;
 const VIEWPORT_HEIGHT = /[\d.]+vh/;
@@ -8,10 +8,14 @@ const EM = /[\d.]+em/;
 const MATH_EXP = /[+\-/*]?[\d.]+(px|%|em|rem|vw|vh)?/g;
 const PLACEHOLDER = '$1';
 const ONLYNUMBERS = /[\s\-0-9]/g;
+const QUOTE = /["']/g;
 const FONTSIZE = 'font-size';
 
+const toArray = Function.prototype.call.bind(Array.prototype.slice);
 const camelize = str => str.replace(/-(\w)/g, (match, letter) => letter.toUpperCase());
 const getStyle = (el, prop) => window.getComputedStyle(el, null).getPropertyValue(prop);
+
+let options;
 
 const doCalc = (rule, name, value) => {
   const calcMatches = value.match(CALC_REG);
@@ -25,7 +29,7 @@ const doCalc = (rule, name, value) => {
   const matches = formula.match(MATH_EXP);
   let elements;
   try {
-    elements = Array.prototype.slice.call(document.querySelectorAll(rule.selectorText), 0);
+    elements = toArray(document.querySelectorAll(rule.selectorText));
   } catch (ex) {} // eslint-disable-line no-empty
   if (!elements) return;
 
@@ -67,6 +71,63 @@ const doCalc = (rule, name, value) => {
   });
 };
 
+const processStylesheet = (ss) => {
+  // cssRules respects same-origin policy, as per
+  // https://code.google.com/p/chromium/issues/detail?id=49001#c10.
+  try {
+    if (!ss.cssRules) return null;
+  } catch (e) {
+    if (e.name !== 'SecurityError') { throw e; }
+    return null;
+  }
+  return toArray(ss.cssRules);
+};
+
+const processDeclarations = (rule) => {
+  if (!rule.style) {
+    if (rule.cssRules) {
+      toArray(rule.cssRules).forEach((r) => {
+        processDeclarations(r);
+      });
+    }
+    return;
+  }
+
+  const content = rule.style.getPropertycontent('content');
+  if (!content || content.indexOf(options.contentPrefix) !== 0) return;
+
+  const fakeRules = content.replace(QUOTE, '');
+  fakeRules.split(';').forEach((fakeRuleElement) => {
+    const fakeRule = fakeRuleElement.split(':');
+    if (fakeRule.length !== 2) return;
+
+    const name = fakeRule[0].trim();
+    const value = fakeRule[1].trim();
+    if (CALC_REG.test(value)) {
+      doCalc(rule, name, value);
+    }
+  });
+};
+
+const process = () => {
+  toArray(document.styleSheets).forEach((sheet) => {
+    const cssRules = processStylesheet(sheet);
+    if (!cssRules) return;
+    if (sheet.media && sheet.media.mediaText
+      && window.matchMedia
+      && !window.matchMedia(sheet.media.mediaText).matches) return;
+
+    cssRules.forEach(processDeclarations);
+  });
+};
+
+const init = (opts) => {
+  options = opts || {};
+  options.contentPrefix = options.contentPrefix || 'calc-polyfill;';
+};
+
 module.exports = {
+  init,
+  process,
   doCalc,
 };
