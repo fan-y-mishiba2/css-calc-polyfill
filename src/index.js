@@ -16,7 +16,7 @@ const camelize = str => str.replace(/-(\w)/g, (match, letter) => letter.toUpperC
 const getStyle = (el, prop) => window.getComputedStyle(el, null).getPropertyValue(prop);
 
 let options;
-const hitRules = [];
+let hits = [];
 
 const doCalc = (rule, name, value) => {
   const calcMatches = value.match(CALC_REG);
@@ -110,6 +110,12 @@ const processDeclarations = (rule) => {
   });
 };
 
+const refresh = () => {
+  hits.forEach((hit) => {
+    doCalc(hit.rule, hit.name, hit.value);
+  });
+};
+
 const process = () => {
   hits = [];
   toArray(document.styleSheets).forEach((sheet) => {
@@ -122,12 +128,6 @@ const process = () => {
     cssRules.forEach(processDeclarations);
   });
   refresh();
-};
-
-const refresh = () => {
-  hits.forEach(hit => {
-    doCalc(hit.rule, hit.name, hit.value);
-  });
 };
 
 const init = (opts) => {
